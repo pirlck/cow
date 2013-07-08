@@ -44,3 +44,14 @@ func (ts *TimeoutSet) del(key string) {
 	delete(ts.time, key)
 	ts.Unlock()
 }
+
+func (ts *TimeoutSet) get_keys_display() string{
+    var display string
+    ts.Lock()
+    for key, _ := range ts.time{
+         display +=  key + " "
+    }
+    ts.Unlock()
+    return display
+}
+

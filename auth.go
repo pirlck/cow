@@ -198,7 +198,8 @@ func initAuth() {
 // authentication is needed, and should be passed back on subsequent call.
 func Authenticate(conn *clientConn, r *Request) (err error) {
 	clientIP, _ := splitHostPort(conn.RemoteAddr().String())
-	if auth.authed.has(clientIP) {
+    debug.Printf("Current authed ips:", auth.authed.get_keys_display())
+    if auth.authed.has(clientIP) {
 		debug.Printf("%s has already authed\n", clientIP)
 		return
 	}
@@ -322,8 +323,8 @@ func checkProxyAuthorization(conn *clientConn, r *Request) error {
 	digest := calcRequestDigest(authHeader, au.ha1, r.Method)
 	if response == digest {
 		clientIP, _ := splitHostPort(conn.RemoteAddr().String())
+	    auth.authed.add(clientIP)
 		if au.ip != clientIP{
-			auth.authed.add(clientIP)
 			auth.authed.del(au.ip)
 			rclient.HSet("ip", user, clientIP)
 		}
