@@ -11,6 +11,8 @@ import (
 	"strings"
 	"text/template"
 	"time"
+	"github.com/vmihailenco/redis"
+
 )
 
 const (
@@ -27,6 +29,11 @@ const (
 `
 )
 
+var rclient *redis.Client
+func initRedis(){
+	rclient = redis.NewTCPClient("localhost:6379", "", -1)
+}
+
 type netAddr struct {
 	ip   net.IP
 	mask net.IPMask
@@ -37,6 +44,8 @@ type authUser struct {
 	passwd string
 	ha1    string // used in request digest, initialized ondemand
 	port   uint16 // 0 means any port
+	ip string
+
 }
 
 var auth struct {
@@ -55,6 +64,20 @@ func (au *authUser) initHA1(user string) {
 	if au.ha1 == "" {
 		au.ha1 = md5sum(user + ":" + authRealm + ":" + au.passwd)
 	}
+}
+
+func getAuth(user string) authUser {
+	r := rclient.HGet("password", user)
+	password := r.Val()
+	if password == "" {
+		return authUser{}
+	}
+
+	r = rclient.HGet("ip", user)
+	ip := r.Val()
+
+	au := authUser{password, "", 0, ip}
+	return au
 }
 
 func parseUserPasswd(userPasswd string) (user string, au *authUser, err error) {
@@ -79,7 +102,7 @@ func parseUserPasswd(userPasswd string) (user string, au *authUser, err error) {
 			return "", nil, err
 		}
 	}
-	au = &authUser{passwd, "", uint16(port)}
+	au = &authUser{passwd, "", uint16(port), ""}
 	return user, au, nil
 }
 
@@ -149,19 +172,14 @@ func loadUserPasswdFile(file string) {
 }
 
 func initAuth() {
-	if config.UserPasswd != "" ||
-		config.UserPasswdFile != "" ||
-		config.AllowedClient != "" {
-		auth.required = true
-	} else {
-		return
-	}
+	auth.required = true
+	initRedis()
 
 	auth.user = make(map[string]*authUser)
 
-	addUserPasswd(config.UserPasswd)
-	loadUserPasswdFile(config.UserPasswdFile)
-	parseAllowedClient(config.AllowedClient)
+	//addUserPasswd(config.UserPasswd)
+	//loadUserPasswdFile(config.UserPasswdFile)
+	//parseAllowedClient(config.AllowedClient)
 
 	auth.authed = NewTimeoutSet(time.Duration(config.AuthTimeout) * time.Hour)
 
@@ -191,14 +209,15 @@ func Authenticate(conn *clientConn, r *Request) (err error) {
 		// No user specified
 		if auth.user == "" {
 			sendErrorPage(conn, "403 Forbidden", "Access forbidden",
-				"You are not allowed to use the proxy.")
+				"You are not
+				 allowed to use the proxy.")
 			return errShouldClose
 		}
 	*/
 	err = authUserPasswd(conn, r)
-	if err == nil {
-		auth.authed.add(clientIP)
-	}
+	//if err == nil {
+		//auth.authed.add(clientIP)
+	//}
 	return
 }
 
@@ -269,8 +288,9 @@ func checkProxyAuthorization(conn *clientConn, r *Request) error {
 	}
 
 	user := authHeader["username"]
-	au, ok := auth.user[user]
-	if !ok {
+	//au, ok := auth.user[user]
+	au := getAuth(user)
+	if au.passwd == "" {
 		errl.Println("auth: no such user:", authHeader["username"])
 		return errAuthRequired
 	}
@@ -301,6 +321,12 @@ func checkProxyAuthorization(conn *clientConn, r *Request) error {
 	au.initHA1(user)
 	digest := calcRequestDigest(authHeader, au.ha1, r.Method)
 	if response == digest {
+		clientIP, _ := splitHostPort(conn.RemoteAddr().String())
+		if au.ip != clientIP{
+			auth.authed.add(clientIP)
+			auth.authed.del(au.ip)
+			rclient.HSet("ip", user, clientIP)
+		}
 		return nil
 	}
 	errl.Println("auth: digest not match, maybe password wrong")
