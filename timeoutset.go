@@ -49,9 +49,10 @@ func (ts *TimeoutSet) get_keys_display() string{
     var display string
     ts.Lock()
     for key, _ := range ts.time{
-         display +=  key + " "
+         display +=  "\n"+ key 
     }
     ts.Unlock()
+    display += "\n"
     return display
 }
 

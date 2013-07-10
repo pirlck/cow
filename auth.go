@@ -67,8 +67,10 @@ func (au *authUser) initHA1(user string) {
 }
 
 func getAuth(user string) authUser {
-	r := rclient.HGet("password", user)
+	info.Println("user", user)
+    r := rclient.HGet("password", user)
 	password := r.Val()
+    info.Println("password", password)
 	if password == "" {
 		return authUser{}
 	}
@@ -198,9 +200,9 @@ func initAuth() {
 // authentication is needed, and should be passed back on subsequent call.
 func Authenticate(conn *clientConn, r *Request) (err error) {
 	clientIP, _ := splitHostPort(conn.RemoteAddr().String())
-    debug.Printf("Current authed ips:", auth.authed.get_keys_display())
+    info.Printf("\033[0;31;48mCurrent authed ips\033[0m: %s", auth.authed.get_keys_display())
     if auth.authed.has(clientIP) {
-		debug.Printf("%s has already authed\n", clientIP)
+		info.Printf("%s has already authed\n", clientIP)
 		return
 	}
 	if authIP(clientIP) { // IP is allowed
@@ -263,7 +265,7 @@ func calcRequestDigest(kv map[string]string, ha1, method string) string {
 }
 
 func checkProxyAuthorization(conn *clientConn, r *Request) error {
-	debug.Println("authorization:", r.ProxyAuthorization)
+	info.Println("authorization:", r.ProxyAuthorization)
 	arr := strings.SplitN(r.ProxyAuthorization, " ", 2)
 	if len(arr) != 2 {
 		errl.Println("auth: malformed ProxyAuthorization header:", r.ProxyAuthorization)
@@ -278,15 +280,16 @@ func checkProxyAuthorization(conn *clientConn, r *Request) error {
 		errl.Println("auth: empty authorization list")
 		return errBadRequest
 	}
-	nonceTime, err := strconv.ParseInt(authHeader["nonce"], 16, 64)
+	
+    _, err := strconv.ParseInt(authHeader["nonce"], 16, 64)
 	if err != nil {
 		return err
 	}
 	// If nonce time too early, reject. iOS will create a new connection to do
 	// authenticate.
-	if time.Now().Sub(time.Unix(nonceTime, 0)) > time.Minute {
-		return errAuthRequired
-	}
+	//if time.Now().Sub(time.Unix(nonceTime, 0)) > time.Minute {
+	//    return errAuthRequired
+    //}
 
 	user := authHeader["username"]
 	//au, ok := auth.user[user]
@@ -324,8 +327,10 @@ func checkProxyAuthorization(conn *clientConn, r *Request) error {
 	if response == digest {
 		clientIP, _ := splitHostPort(conn.RemoteAddr().String())
 	    auth.authed.add(clientIP)
-		if au.ip != clientIP{
+		info.Printf("'\033[0;31;48mAdd new ip %s for %s\033[0m", clientIP, user)
+        if au.ip != clientIP{
 			auth.authed.del(au.ip)
+		    info.Printf("'\033[0;31;48mDel %s's ip %s\033[0m", user, au.ip)
 			rclient.HSet("ip", user, clientIP)
 		}
 		return nil
@@ -358,8 +363,8 @@ func authUserPasswd(conn *clientConn, r *Request) (err error) {
 		errl.Println("Error generating auth response:", err)
 		return errInternal
 	}
-	if debug {
-		debug.Printf("authorization response:\n%s", buf.String())
+	if info {
+		info.Printf("authorization response:\n%s", buf.String())
 	}
 	if _, err := conn.Write(buf.Bytes()); err != nil {
 		errl.Println("Sending auth response error:", err)
