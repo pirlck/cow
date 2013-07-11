@@ -49,16 +49,26 @@ func initRedis(){
 	rclient = redis.NewTCPClient("localhost:6379", "", -1)
 }
 
-func b64decode(data string) string{
-    d, _ := base64.StdEncoding.DecodeString(data)
-    result := fmt.Sprintf("%q", d)
-    return result
+func b64decode(data string) (r string, err error ){
+    d, err := base64.StdEncoding.DecodeString(data)
+    if err != nil{
+        return "", err
+    }
+    r = fmt.Sprintf("%q", d)
+    return r, nil
 }
 
-func parseUserPassword(data string) (name string, password string){
-    s := strings.Trim(data, "\"")
+func parseUserPassword(data string) (name string, password string, err error){
+    d, err := b64decode(data)
+    if err != nil{
+        return "", "", errors.New("Base64 decoded Wrong:" + data + err.Error())
+    }
+    s := strings.Trim(d, "\"")
     r := strings.Split(s, ":")
-    return r[0], r[1]
+    if len(r) != 2{
+        return "", "", errors.New("Parse user and password wrong")
+    }
+    return r[0], r[1], nil
 }
 
 type netAddr struct {
@@ -216,7 +226,7 @@ func initAuth() {
 		"Proxy-Authenticate: Basic realm=\"" + authRealm2 + "\"\r\n" +
 		"Content-Type: text/html\r\n" +
 		"Cache-Control: no-cache\r\n" +
-		"Content-Length: " + fmt.Sprintf("%d", len(authRawBodyTmpl2)) + "\r\n\r\n" + authRawBodyTmpli2
+		"Content-Length: " + fmt.Sprintf("%d", len(authRawBodyTmpl2)) + "\r\n\r\n" + authRawBodyTmpl2
 	var err error
 	if auth.template, err = template.New("auth").Parse(rawTemplate); err != nil {
 		Fatal("internal error generating auth template:", err)
@@ -303,8 +313,11 @@ func checkProxyAuthorization(conn *clientConn, r *Request) error {
 		return errBadRequest
 	}
 	//handle error
-
-    name, password := parseUserPassword(arr[1])
+    name, password, err := parseUserPassword(arr[1])
+    if err != nil{
+        errl.Println("Parse user and password wrong using base64:", arr[1])
+        return errBadRequest
+    }
     info.Println("Get User:", name)
     info.Println("password", password)
 
@@ -323,7 +336,6 @@ func checkProxyAuthorization(conn *clientConn, r *Request) error {
 			return errAuthRequired
 		}
 	}
-
 
 	if password == au.passwd {
 		clientIP, _ := splitHostPort(conn.RemoteAddr().String())
