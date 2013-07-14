@@ -323,6 +323,7 @@ var hopByHopHeader = map[string]bool{
 	headerConnection:         true,
 	headerKeepAlive:          true,
 	headerProxyAuthorization: true,
+	headerXForwardFor:        true,
 	headerProxyConnection:    true,
 	headerTE:                 true,
 	headerTrailer:            true,
