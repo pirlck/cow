@@ -16,6 +16,7 @@ type Header struct {
 	ContLen             int64
 	KeepAlive           time.Duration
 	ProxyAuthorization  string
+	XForwardFor  string
 	Chunking            bool
 	ConnectionKeepAlive bool
 	ExpectContinue      bool
@@ -293,6 +294,7 @@ const (
 	headerKeepAlive          = "keep-alive"
 	headerProxyAuthenticate  = "proxy-authenticate"
 	headerProxyAuthorization = "proxy-authorization"
+	headerXForwardFor        = "x-forwarded-for"
 	headerProxyConnection    = "proxy-connection"
 	headerReferer            = "referer"
 	headerTE                 = "te"
@@ -311,6 +313,7 @@ var headerParser = map[string]HeaderParserFunc{
 	headerContentLength:      (*Header).parseContentLength,
 	headerKeepAlive:          (*Header).parseKeepAlive,
 	headerProxyAuthorization: (*Header).parseProxyAuthorization,
+	headerXForwardFor:        (*Header).parseXForwardFor,
 	headerProxyConnection:    (*Header).parseConnection,
 	headerTransferEncoding:   (*Header).parseTransferEncoding,
 	headerExpect:             (*Header).parseExpect,
@@ -365,6 +368,11 @@ func (h *Header) parseKeepAlive(s []byte, raw *bytes.Buffer) (err error) {
 
 func (h *Header) parseProxyAuthorization(s []byte, raw *bytes.Buffer) error {
 	h.ProxyAuthorization = string(s)
+	return nil
+}
+
+func (h *Header) parseXForwardFor(s []byte, raw *bytes.Buffer) error {
+	h.XForwardFor = string(s)
 	return nil
 }
 

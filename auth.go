@@ -221,7 +221,7 @@ func initAuth() {
 	//parseAllowedClient(config.AllowedClient)
 
 	auth.authed = NewTimeoutSet(time.Duration(config.AuthTimeout) * time.Hour)
-
+    
 	rawTemplate := "HTTP/1.1 407 Proxy Authentication Required\r\n" +
 		"Proxy-Authenticate: Basic realm=\"" + authRealm2 + "\"\r\n" +
 		"Content-Type: text/html\r\n" +
@@ -236,7 +236,8 @@ func initAuth() {
 // Return err = nil if authentication succeed. nonce would be not empty if
 // authentication is needed, and should be passed back on subsequent call.
 func Authenticate(conn *clientConn, r *Request) (err error) {
-	clientIP, _ := splitHostPort(conn.RemoteAddr().String())
+	//clientIP, _ := splitHostPort(conn.RemoteAddr().String())
+    clientIP =  r.XForwardFor
     info.Printf("\033[0;31;48mCurrent authed ips\033[0m: %s", auth.authed.get_keys_display())
     if auth.authed.has(clientIP) {
 		info.Printf("%s has already authed\n", clientIP)
@@ -338,8 +339,9 @@ func checkProxyAuthorization(conn *clientConn, r *Request) error {
 	}
 
 	if password == au.passwd {
-		clientIP, _ := splitHostPort(conn.RemoteAddr().String())
-	    auth.authed.add(clientIP)
+		//clientIP, _ := splitHostPort(conn.RemoteAddr().String())
+	    clientIP = r.XForwardFor
+        auth.authed.add(clientIP)
 		info.Printf("'\033[0;31;48mAdd new ip %s for %s\033[0m", clientIP, name)
         if au.ip != clientIP{
 			auth.authed.del(au.ip)
